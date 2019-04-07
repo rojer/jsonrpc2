@@ -1,6 +1,6 @@
-// Package jsonrpc2 provides a client and server implementation of
+// Package mgrpc provides a client and server implementation of
 // [JSON-RPC 2.0](http://www.jsonrpc.org/specification).
-package jsonrpc2
+package mgrpc
 
 import (
 	"bytes"
@@ -149,7 +149,7 @@ type Response struct {
 // property.
 func (r Response) MarshalJSON() ([]byte, error) {
 	if (r.Result == nil || len(*r.Result) == 0) && r.Error == nil {
-		return nil, errors.New("can't marshal *jsonrpc2.Response (must have result or error)")
+		return nil, errors.New("can't marshal *mgrpc.Response (must have result or error)")
 	}
 	type tmpType Response // avoid infinite MarshalJSON recursion
 	b, err := json.Marshal(tmpType(r))
@@ -209,7 +209,7 @@ func (e *Error) SetError(v interface{}) {
 
 // Error implements the Go error interface.
 func (e *Error) Error() string {
-	return fmt.Sprintf("jsonrpc2: code %v message: %s", e.Code, e.Message)
+	return fmt.Sprintf("mgrpc: code %v message: %s", e.Code, e.Message)
 }
 
 const (
@@ -306,7 +306,7 @@ var _ JSONRPC2 = (*Conn)(nil)
 
 // ErrClosed indicates that the JSON-RPC connection is closed (or in
 // the process of closing).
-var ErrClosed = errors.New("jsonrpc2: connection is closed")
+var ErrClosed = errors.New("mgrpc: connection is closed")
 
 // NewConn creates a new JSON-RPC client/server connection using the
 // given ReadWriteCloser (typically a TCP connection or stdio). The
@@ -544,7 +544,7 @@ func (c *Conn) readMessages(ctx context.Context) {
 
 				switch {
 				case call == nil:
-					log.Printf("jsonrpc2: ignoring response #%s with no corresponding request", id)
+					log.Printf("mgrpc: ignoring response #%s with no corresponding request", id)
 
 				case resp.Error != nil:
 					call.done <- resp.Error
@@ -576,7 +576,7 @@ func (c *Conn) readMessages(ctx context.Context) {
 	c.mu.Unlock()
 	c.sending.Unlock()
 	if err != io.ErrUnexpectedEOF && !closing {
-		log.Println("jsonrpc2: protocol error:", err)
+		log.Println("mgrpc: protocol error:", err)
 	}
 	close(c.disconnect)
 }
@@ -606,7 +606,7 @@ func (m anyMessage) MarshalJSON() ([]byte, error) {
 	if v != nil {
 		return json.Marshal(v)
 	}
-	return nil, errors.New("jsonrpc2: message must have exactly one of the request or response fields set")
+	return nil, errors.New("mgrpc: message must have exactly one of the request or response fields set")
 }
 
 func (m *anyMessage) UnmarshalJSON(data []byte) error {
@@ -624,10 +624,10 @@ func (m *anyMessage) UnmarshalJSON(data []byte) error {
 		mIsRequest := m.Method != nil
 		mIsResponse := m.Result.null || m.Result.value != nil || m.Error != nil
 		if (!mIsRequest && !mIsResponse) || (mIsRequest && mIsResponse) {
-			return errors.New("jsonrpc2: unable to determine message type (request or response)")
+			return errors.New("mgrpc: unable to determine message type (request or response)")
 		}
 		if (mIsRequest && isResponse) || (mIsResponse && isRequest) {
-			return errors.New("jsonrpc2: batch message type mismatch (must be all requests or all responses)")
+			return errors.New("mgrpc: batch message type mismatch (must be all requests or all responses)")
 		}
 		isRequest = mIsRequest
 		isResponse = mIsResponse
@@ -640,7 +640,7 @@ func (m *anyMessage) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		if len(msgs) == 0 {
-			return errors.New("jsonrpc2: invalid empty batch")
+			return errors.New("mgrpc: invalid empty batch")
 		}
 		for _, msg := range msgs {
 			if err := checkType(&msg); err != nil {
@@ -695,6 +695,6 @@ func (v *anyValueWithExplicitNull) UnmarshalJSON(data []byte) error {
 }
 
 var (
-	errInvalidRequestJSON  = errors.New("jsonrpc2: request must be either a JSON object or JSON array")
-	errInvalidResponseJSON = errors.New("jsonrpc2: response must be either a JSON object or JSON array")
+	errInvalidRequestJSON  = errors.New("mgrpc: request must be either a JSON object or JSON array")
+	errInvalidResponseJSON = errors.New("mgrpc: response must be either a JSON object or JSON array")
 )

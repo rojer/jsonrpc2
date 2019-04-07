@@ -8,24 +8,24 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// A ObjectStream is a jsonrpc2.ObjectStream that uses a WebSocket to
+// A ObjectStream is a mgrpc.ObjectStream that uses a WebSocket to
 // send and receive JSON-RPC 2.0 objects.
 type ObjectStream struct {
 	conn *websocket.Conn
 }
 
-// NewObjectStream creates a new jsonrpc2.ObjectStream for sending and
+// NewObjectStream creates a new mgrpc.ObjectStream for sending and
 // receiving JSON-RPC 2.0 objects over a WebSocket.
 func NewObjectStream(conn *websocket.Conn) ObjectStream {
 	return ObjectStream{conn: conn}
 }
 
-// WriteObject implements jsonrpc2.ObjectStream.
+// WriteObject implements mgrpc.ObjectStream.
 func (t ObjectStream) WriteObject(obj interface{}) error {
 	return t.conn.WriteJSON(obj)
 }
 
-// ReadObject implements jsonrpc2.ObjectStream.
+// ReadObject implements mgrpc.ObjectStream.
 func (t ObjectStream) ReadObject(v interface{}) error {
 	err := t.conn.ReadJSON(v)
 	if e, ok := err.(*websocket.CloseError); ok {
@@ -38,7 +38,7 @@ func (t ObjectStream) ReadObject(v interface{}) error {
 	return err
 }
 
-// Close implements jsonrpc2.ObjectStream.
+// Close implements mgrpc.ObjectStream.
 func (t ObjectStream) Close() error {
 	return t.conn.Close()
 }

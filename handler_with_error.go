@@ -1,4 +1,4 @@
-package jsonrpc2
+package mgrpc
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func (h *HandlerWithErrorConfigurer) Handle(ctx context.Context, conn *Conn, req
 	result, err := h.handleFunc(ctx, conn, req)
 	if req.Notif {
 		if err != nil {
-			log.Printf("jsonrpc2 handler: notification %q handling error: %s", req.Method, err)
+			log.Printf("mgrpc handler: notification %q handling error: %s", req.Method, err)
 		}
 		return
 	}
@@ -41,13 +41,13 @@ func (h *HandlerWithErrorConfigurer) Handle(ctx context.Context, conn *Conn, req
 	if !req.Notif {
 		if err := conn.SendResponse(ctx, resp); err != nil {
 			if err != ErrClosed || !h.suppressErrClosed {
-				log.Printf("jsonrpc2 handler: sending response %s: %s", resp.ID, err)
+				log.Printf("mgrpc handler: sending response %s: %s", resp.ID, err)
 			}
 		}
 	}
 }
 
-// SuppressErrClosed makes the handler suppress jsonrpc2.ErrClosed errors from
+// SuppressErrClosed makes the handler suppress mgrpc.ErrClosed errors from
 // being logged. The original handler `h` is returned.
 //
 // This is optional because only in some cases is this behavior desired. For

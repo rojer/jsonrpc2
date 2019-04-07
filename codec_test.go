@@ -1,4 +1,4 @@
-package jsonrpc2
+package mgrpc
 
 import (
 	"bufio"

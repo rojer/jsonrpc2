@@ -1,4 +1,4 @@
-package jsonrpc2
+package mgrpc
 
 // CallOption is an option that can be provided to (*Conn).Call to
 // configure custom behavior. See Meta.

@@ -1,4 +1,4 @@
-package jsonrpc2_test
+package mgrpc_test
 
 import (
 	"bytes"
@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/sourcegraph/jsonrpc2"
-	websocketjsonrpc2 "github.com/sourcegraph/jsonrpc2/websocket"
+	"github.com/sourcegraph/mgrpc"
+	websocketmgrpc "github.com/sourcegraph/mgrpc/websocket"
 )
 
 func TestRequest_MarshalJSON_jsonrpc(t *testing.T) {
-	b, err := json.Marshal(&jsonrpc2.Request{})
+	b, err := json.Marshal(&mgrpc.Request{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestRequest_MarshalJSON_jsonrpc(t *testing.T) {
 
 func TestResponse_MarshalJSON_jsonrpc(t *testing.T) {
 	null := json.RawMessage("null")
-	b, err := json.Marshal(&jsonrpc2.Response{Result: &null})
+	b, err := json.Marshal(&mgrpc.Response{Result: &null})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,12 +41,12 @@ func TestResponse_MarshalJSON_jsonrpc(t *testing.T) {
 }
 
 func TestResponseMarshalJSON_Notif(t *testing.T) {
-	tests := map[*jsonrpc2.Request]bool{
-		&jsonrpc2.Request{ID: jsonrpc2.ID{Num: 0}}:                   true,
-		&jsonrpc2.Request{ID: jsonrpc2.ID{Num: 1}}:                   true,
-		&jsonrpc2.Request{ID: jsonrpc2.ID{Str: "", IsString: true}}:  true,
-		&jsonrpc2.Request{ID: jsonrpc2.ID{Str: "a", IsString: true}}: true,
-		&jsonrpc2.Request{Notif: true}:                               false,
+	tests := map[*mgrpc.Request]bool{
+		&mgrpc.Request{ID: mgrpc.ID{Num: 0}}:                   true,
+		&mgrpc.Request{ID: mgrpc.ID{Num: 1}}:                   true,
+		&mgrpc.Request{ID: mgrpc.ID{Str: "", IsString: true}}:  true,
+		&mgrpc.Request{ID: mgrpc.ID{Str: "a", IsString: true}}: true,
+		&mgrpc.Request{Notif: true}:                            false,
 	}
 	for r, wantIDKey := range tests {
 		b, err := json.Marshal(r)
@@ -69,7 +69,7 @@ func TestResponseUnmarshalJSON_Notif(t *testing.T) {
 		`{"method":"f"}`:          true,
 	}
 	for s, want := range tests {
-		var r jsonrpc2.Request
+		var r mgrpc.Request
 		if err := json.Unmarshal([]byte(s), &r); err != nil {
 			t.Fatal(err)
 		}
@@ -82,7 +82,7 @@ func TestResponseUnmarshalJSON_Notif(t *testing.T) {
 // testHandlerA is the "server" handler.
 type testHandlerA struct{ t *testing.T }
 
-func (h *testHandlerA) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+func (h *testHandlerA) Handle(ctx context.Context, conn *mgrpc.Conn, req *mgrpc.Request) {
 	if req.Notif {
 		return // notification
 	}
@@ -102,7 +102,7 @@ type testHandlerB struct {
 	got []string
 }
 
-func (h *testHandlerB) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+func (h *testHandlerB) Handle(ctx context.Context, conn *mgrpc.Conn, req *mgrpc.Request) {
 	if req.Notif {
 		h.mu.Lock()
 		defer h.mu.Unlock()
@@ -146,7 +146,7 @@ func TestClientServer(t *testing.T) {
 		if err != nil {
 			t.Fatal("Dial:", err)
 		}
-		testClientServer(ctx, t, jsonrpc2.NewBufferedStream(conn, jsonrpc2.VarintObjectCodec{}))
+		testClientServer(ctx, t, mgrpc.NewBufferedStream(conn, mgrpc.VarintObjectCodec{}))
 
 		lis.Close()
 		<-done // ensure Serve's error return (if any) is caught by this test
@@ -163,7 +163,7 @@ func TestClientServer(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer c.Close()
-			jc := jsonrpc2.NewConn(r.Context(), websocketjsonrpc2.NewObjectStream(c), &ha)
+			jc := mgrpc.NewConn(r.Context(), websocketmgrpc.NewObjectStream(c), &ha)
 			<-jc.DisconnectNotify()
 			close(done)
 		}))
@@ -174,15 +174,15 @@ func TestClientServer(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer c.Close()
-		testClientServer(ctx, t, websocketjsonrpc2.NewObjectStream(c))
+		testClientServer(ctx, t, websocketmgrpc.NewObjectStream(c))
 
 		<-done // keep the test running until the WebSocket disconnects (to avoid missing errors)
 	})
 }
 
-func testClientServer(ctx context.Context, t *testing.T, stream jsonrpc2.ObjectStream) {
+func testClientServer(ctx context.Context, t *testing.T, stream mgrpc.ObjectStream) {
 	hb := testHandlerB{t: t}
-	cc := jsonrpc2.NewConn(ctx, stream, &hb)
+	cc := mgrpc.NewConn(ctx, stream, &hb)
 	defer func() {
 		if err := cc.Close(); err != nil {
 			t.Fatal(err)
@@ -236,9 +236,9 @@ func (c *pipeReadWriteCloser) Close() error {
 	return err2
 }
 
-type handlerFunc func(context.Context, *jsonrpc2.Conn, *jsonrpc2.Request)
+type handlerFunc func(context.Context, *mgrpc.Conn, *mgrpc.Request)
 
-func (h handlerFunc) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+func (h handlerFunc) Handle(ctx context.Context, conn *mgrpc.Conn, req *mgrpc.Request) {
 	h(ctx, conn, req)
 }
 
@@ -250,30 +250,30 @@ func TestPickID(t *testing.T) {
 	defer a.Close()
 	defer b.Close()
 
-	handler := handlerFunc(func(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+	handler := handlerFunc(func(ctx context.Context, conn *mgrpc.Conn, req *mgrpc.Request) {
 		if err := conn.Reply(ctx, req.ID, fmt.Sprintf("hello, #%s: %s", req.ID, *req.Params)); err != nil {
 			t.Error(err)
 		}
 	})
-	connA := jsonrpc2.NewConn(ctx, jsonrpc2.NewBufferedStream(a, jsonrpc2.VSCodeObjectCodec{}), handler)
-	connB := jsonrpc2.NewConn(ctx, jsonrpc2.NewBufferedStream(b, jsonrpc2.VSCodeObjectCodec{}), noopHandler{})
+	connA := mgrpc.NewConn(ctx, mgrpc.NewBufferedStream(a, mgrpc.VSCodeObjectCodec{}), handler)
+	connB := mgrpc.NewConn(ctx, mgrpc.NewBufferedStream(b, mgrpc.VSCodeObjectCodec{}), noopHandler{})
 	defer connA.Close()
 	defer connB.Close()
 
 	const n = 100
 	for i := 0; i < n; i++ {
-		var opts []jsonrpc2.CallOption
-		id := jsonrpc2.ID{Num: uint64(i)}
+		var opts []mgrpc.CallOption
+		id := mgrpc.ID{Num: uint64(i)}
 
 		// This is the actual test, every 3rd request we specify the
 		// ID and ensure we get a response with the correct ID echoed
 		// back
 		if i%3 == 0 {
-			id = jsonrpc2.ID{
+			id = mgrpc.ID{
 				Str:      fmt.Sprintf("helloworld-%d", i/3),
 				IsString: true,
 			}
-			opts = append(opts, jsonrpc2.PickID(id))
+			opts = append(opts, mgrpc.PickID(id))
 		}
 
 		var got string
@@ -299,15 +299,15 @@ func TestHandlerBlocking(t *testing.T) {
 
 	var wg sync.WaitGroup
 	var params []int
-	handler := handlerFunc(func(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {
+	handler := handlerFunc(func(ctx context.Context, conn *mgrpc.Conn, req *mgrpc.Request) {
 		var i int
 		_ = json.Unmarshal(*req.Params, &i)
 		// don't need to synchronize access to ids since we should be blocking
 		params = append(params, i)
 		wg.Done()
 	})
-	connA := jsonrpc2.NewConn(ctx, jsonrpc2.NewBufferedStream(a, jsonrpc2.VSCodeObjectCodec{}), handler)
-	connB := jsonrpc2.NewConn(ctx, jsonrpc2.NewBufferedStream(b, jsonrpc2.VSCodeObjectCodec{}), noopHandler{})
+	connA := mgrpc.NewConn(ctx, mgrpc.NewBufferedStream(a, mgrpc.VSCodeObjectCodec{}), handler)
+	connB := mgrpc.NewConn(ctx, mgrpc.NewBufferedStream(b, mgrpc.VSCodeObjectCodec{}), noopHandler{})
 	defer connA.Close()
 	defer connB.Close()
 
@@ -331,7 +331,7 @@ func TestHandlerBlocking(t *testing.T) {
 
 type noopHandler struct{}
 
-func (noopHandler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) {}
+func (noopHandler) Handle(ctx context.Context, conn *mgrpc.Conn, req *mgrpc.Request) {}
 
 type readWriteCloser struct {
 	read, write func(p []byte) (n int, err error)
@@ -352,7 +352,7 @@ func eof(p []byte) (n int, err error) {
 }
 
 func TestConn_DisconnectNotify_EOF(t *testing.T) {
-	c := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(&readWriteCloser{eof, eof}, jsonrpc2.VarintObjectCodec{}), nil)
+	c := mgrpc.NewConn(context.Background(), mgrpc.NewBufferedStream(&readWriteCloser{eof, eof}, mgrpc.VarintObjectCodec{}), nil)
 	select {
 	case <-c.DisconnectNotify():
 	case <-time.After(200 * time.Millisecond):
@@ -361,7 +361,7 @@ func TestConn_DisconnectNotify_EOF(t *testing.T) {
 }
 
 func TestConn_DisconnectNotify_Close(t *testing.T) {
-	c := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(&readWriteCloser{eof, eof}, jsonrpc2.VarintObjectCodec{}), nil)
+	c := mgrpc.NewConn(context.Background(), mgrpc.NewBufferedStream(&readWriteCloser{eof, eof}, mgrpc.VarintObjectCodec{}), nil)
 	if err := c.Close(); err != nil {
 		t.Error(err)
 	}
@@ -374,9 +374,9 @@ func TestConn_DisconnectNotify_Close(t *testing.T) {
 
 func TestConn_DisconnectNotify_Close_async(t *testing.T) {
 	done := make(chan struct{})
-	c := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(&readWriteCloser{eof, eof}, jsonrpc2.VarintObjectCodec{}), nil)
+	c := mgrpc.NewConn(context.Background(), mgrpc.NewBufferedStream(&readWriteCloser{eof, eof}, mgrpc.VarintObjectCodec{}), nil)
 	go func() {
-		if err := c.Close(); err != nil && err != jsonrpc2.ErrClosed {
+		if err := c.Close(); err != nil && err != mgrpc.ErrClosed {
 			t.Error(err)
 		}
 		close(done)
@@ -390,15 +390,15 @@ func TestConn_DisconnectNotify_Close_async(t *testing.T) {
 }
 
 func TestConn_Close_waitingForResponse(t *testing.T) {
-	c := jsonrpc2.NewConn(context.Background(), jsonrpc2.NewBufferedStream(&readWriteCloser{eof, eof}, jsonrpc2.VarintObjectCodec{}), noopHandler{})
+	c := mgrpc.NewConn(context.Background(), mgrpc.NewBufferedStream(&readWriteCloser{eof, eof}, mgrpc.VarintObjectCodec{}), noopHandler{})
 	done := make(chan struct{})
 	go func() {
-		if err := c.Call(context.Background(), "m", nil, nil); err != jsonrpc2.ErrClosed {
-			t.Errorf("got error %v, want %v", err, jsonrpc2.ErrClosed)
+		if err := c.Call(context.Background(), "m", nil, nil); err != mgrpc.ErrClosed {
+			t.Errorf("got error %v, want %v", err, mgrpc.ErrClosed)
 		}
 		close(done)
 	}()
-	if err := c.Close(); err != nil && err != jsonrpc2.ErrClosed {
+	if err := c.Close(); err != nil && err != mgrpc.ErrClosed {
 		t.Error(err)
 	}
 	select {
@@ -409,12 +409,12 @@ func TestConn_Close_waitingForResponse(t *testing.T) {
 	<-done
 }
 
-func serve(ctx context.Context, lis net.Listener, h jsonrpc2.Handler, opts ...jsonrpc2.ConnOpt) error {
+func serve(ctx context.Context, lis net.Listener, h mgrpc.Handler, opts ...mgrpc.ConnOpt) error {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
 			return err
 		}
-		jsonrpc2.NewConn(ctx, jsonrpc2.NewBufferedStream(conn, jsonrpc2.VarintObjectCodec{}), h, opts...)
+		mgrpc.NewConn(ctx, mgrpc.NewBufferedStream(conn, mgrpc.VarintObjectCodec{}), h, opts...)
 	}
 }

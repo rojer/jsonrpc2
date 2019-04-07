@@ -1,4 +1,4 @@
-package jsonrpc2
+package mgrpc
 
 import (
 	"bufio"
@@ -142,7 +142,7 @@ func (VSCodeObjectCodec) ReadObject(stream *bufio.Reader, v interface{}) error {
 			return err
 		}
 		if b != '\n' {
-			return fmt.Errorf(`jsonrpc2: line endings must be \r\n`)
+			return fmt.Errorf(`mgrpc: line endings must be \r\n`)
 		}
 		if line == "\r" {
 			break
@@ -158,7 +158,7 @@ func (VSCodeObjectCodec) ReadObject(stream *bufio.Reader, v interface{}) error {
 		}
 	}
 	if contentLength == 0 {
-		return fmt.Errorf("jsonrpc2: no Content-Length header found")
+		return fmt.Errorf("mgrpc: no Content-Length header found")
 	}
 	return json.NewDecoder(io.LimitReader(stream, int64(contentLength))).Decode(v)
 }
